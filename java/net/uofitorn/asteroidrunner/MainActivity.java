@@ -20,6 +20,7 @@ public class MainActivity extends Activity {
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
         setContentView(R.layout.lunar_layout);
         lunarView = (LunarView) findViewById(R.id.lunar);
+
         lunarThread = lunarView.getThread();
         //setContentView(new LunarView(this));
     }

@@ -82,11 +82,16 @@ public class LunarView extends SurfaceView implements SurfaceHolder.Callback {
             return running;
         }
 
+        public void updateState() {
+            asteroidRunner.calcSurroundingMines();
+        }
+
         private void doDraw(Canvas canvas) {
             asteroidRunner.drawBackground(canvas, canvasWidth, canvasHeight);
             asteroidRunner.drawGrid(boardWidth, boardHeight, canvas);
             asteroidRunner.drawPlayerShip(canvas);
             asteroidRunner.drawMines(canvas);
+            asteroidRunner.drawMineCount(canvas);
         }
 
         @Override
@@ -120,10 +125,6 @@ public class LunarView extends SurfaceView implements SurfaceHolder.Callback {
                 else if (keyCode == KeyEvent.KEYCODE_D)
                     asteroidRunner.handleMoveRight();
             }
-        }
-
-        public void updateState() {
-
         }
     }
 

@@ -14,32 +14,41 @@ public class AsteroidRunner {
 
     private int playerX = 0;
     private int playerY = 0;
+    private int surroundingMines = 0;
     private int gridSquareLength = 0;
     private int gridSquareHeight = 0;
 
-    private static final int boardSize = 12;
-
     public static final double DIFFICULTY_EASY = 0.20;
-    public static final double DIFFICULTY_MEDIUM = 0.30;
-    public static final double DIFFICULTY_HARD = 0.40;
+    public static final double DIFFICULTY_MEDIUM = 0.25;
+    public static final double DIFFICULTY_HARD = 0.45;
 
+    private static final int boardSize = 12;
     private int[][] gameBoard = new int[boardSize][boardSize];
-    private double difficultyLevel = DIFFICULTY_EASY;
+    private double difficultyLevel = DIFFICULTY_HARD;
 
     private Bitmap backgroundImage;
     private Bitmap playerShipSprite;
     private Bitmap spaceMineSprite;
+    private Bitmap[] numerals = new Bitmap[8];
 
     public AsteroidRunner(Context context) {
         Resources res = context.getResources();
         backgroundImage = BitmapFactory.decodeResource(res, R.drawable.starbackground);
         playerShipSprite = BitmapFactory.decodeResource(res, R.drawable.lander_plain);
         spaceMineSprite = BitmapFactory.decodeResource(res, R.drawable.spacemine);
-        /*do {
+        numerals[0] = BitmapFactory.decodeResource(res, R.drawable.zero);
+        numerals[1] = BitmapFactory.decodeResource(res, R.drawable.one);
+        numerals[2] = BitmapFactory.decodeResource(res, R.drawable.two);
+        numerals[3] = BitmapFactory.decodeResource(res, R.drawable.three);
+        numerals[4] = BitmapFactory.decodeResource(res, R.drawable.four);
+        numerals[5] = BitmapFactory.decodeResource(res, R.drawable.five);
+        numerals[6] = BitmapFactory.decodeResource(res, R.drawable.six);
+        numerals[7] = BitmapFactory.decodeResource(res, R.drawable.seven);
+
+        do {
             shuffleMap();
-        } while (!testIfSolvable());  */
-        shuffleMap();
-        testIfSolvable();
+            Log.i(TAG, "Shuffling game board");
+        } while (!isSolvable());
     }
 
     public void drawGrid(int boardWidth, int boardHeight, Canvas canvas) {
@@ -75,6 +84,31 @@ public class AsteroidRunner {
     public void drawPlayerShip(Canvas canvas) {
         playerShipSprite = Bitmap.createScaledBitmap(playerShipSprite, gridSquareLength, gridSquareHeight, true);
         canvas.drawBitmap(playerShipSprite, playerX * gridSquareLength, playerY * gridSquareHeight + 5, null);
+    }
+
+    public void drawMineCount(Canvas canvas) {
+        canvas.drawBitmap(numerals[surroundingMines], 50, 50  + (12 * gridSquareHeight), null);
+    }
+
+    public void calcSurroundingMines() {
+        int numMines = 0;
+        if (gameBoard[playerX - 1][playerY - 1] == 1)
+            numMines++;
+        if (gameBoard[playerX][playerY - 1] == 1)
+            numMines++;
+        if (gameBoard[playerX + 1][playerY - 1] == 1)
+            numMines++;
+        if (gameBoard[playerX + 1][playerY] == 1)
+            numMines++;
+        if (gameBoard[playerX + 1][playerY + 1] == 1)
+            numMines++;
+        if (gameBoard[playerX][playerY + 1] == 1)
+            numMines++;
+        if (gameBoard[playerX - 1][playerY + 1] == 1)
+            numMines++;
+        if (gameBoard[playerX - 1][playerY] == 1)
+            numMines++;
+        surroundingMines = numMines;
     }
 
     public void handleMoveUp() {
@@ -114,23 +148,34 @@ public class AsteroidRunner {
                 }
             }
         }
+        gameBoard[0][0] = 0;
+        gameBoard[boardSize - 1][boardSize - 1] = 0;
     }
 
-    private void testIfSolvable() {
-        if (findPath(0, 0))
+    private boolean isSolvable() {
+        if (findPath(0, 0)) {
             Log.i(TAG, "Path returned true");
-        else
+            return true;
+        }
+        else {
             Log.i(TAG, "Path returned false");
+            return false;
+        }
     }
 
     private boolean findPath(int x, int y) {
-        Log.i(TAG, "Testing x: " + x + " and y: " + y);
         if ((x > 11) || (y > 11) || (x < 0) || (y < 0))
             return false;
         if ((x == 11) && (y == 11))
             return true;
         if (gameBoard[x][y] == 1)
             return false;
+        if (gameBoard[x][y] == 3)
+            return false;
+
+        // Mark that we have visited this square
+        gameBoard[x][y] = 3;
+
         if (findPath(x, y + 1))
             return true;
         if (findPath(x + 1, y))
@@ -141,5 +186,4 @@ public class AsteroidRunner {
             return true;
         return false;
     }
-
 }
