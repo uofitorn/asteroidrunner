@@ -39,7 +39,6 @@ public class LunarView extends SurfaceView implements SurfaceHolder.Callback {
             this.surfaceHolder = surfaceHolder;
             this.handler = handler;
             context = ctx;
-
             asteroidRunner = new AsteroidRunner(ctx);
         }
 
@@ -61,9 +60,12 @@ public class LunarView extends SurfaceView implements SurfaceHolder.Callback {
 
         public void setSurfaceSize(int width, int height) {
             synchronized (surfaceHolder) {
-                canvasWidth = boardWidth = width;
+                canvasWidth = width;
                 canvasHeight = height;
+                boardWidth = width;
                 boardHeight = boardWidth;
+                asteroidRunner.initializeBounds(width, height);
+                asteroidRunner.initializeImages();
             }
         }
 
@@ -83,15 +85,22 @@ public class LunarView extends SurfaceView implements SurfaceHolder.Callback {
         }
 
         public void updateState() {
-            asteroidRunner.calcSurroundingMines();
+            asteroidRunner.calculateCollision();
         }
 
         private void doDraw(Canvas canvas) {
-            asteroidRunner.drawBackground(canvas, canvasWidth, canvasHeight);
-            asteroidRunner.drawGrid(boardWidth, boardHeight, canvas);
-            asteroidRunner.drawPlayerShip(canvas);
-            asteroidRunner.drawMines(canvas);
-            asteroidRunner.drawMineCount(canvas);
+            if (asteroidRunner.getGameState() == AsteroidRunner.GAMESTATE_PLAYING) {
+                asteroidRunner.drawBackground(canvas);
+                asteroidRunner.drawGrid(boardWidth, boardHeight, canvas);
+                asteroidRunner.drawPlayerShip(canvas);
+                asteroidRunner.drawMineCount(canvas);
+                asteroidRunner.drawSquareCover(canvas);
+            } else if (asteroidRunner.getGameState() == AsteroidRunner.GAMESTATE_LOST_GAME) {
+                asteroidRunner.drawBackground(canvas);
+                asteroidRunner.drawGrid(boardWidth, boardHeight, canvas);
+                asteroidRunner.drawMines(canvas);
+                asteroidRunner.drawExplosion(canvas);
+            }
         }
 
         @Override
@@ -124,6 +133,8 @@ public class LunarView extends SurfaceView implements SurfaceHolder.Callback {
                     asteroidRunner.handleMoveLeft();
                 else if (keyCode == KeyEvent.KEYCODE_D)
                     asteroidRunner.handleMoveRight();
+                asteroidRunner.calcSurroundingMines();
+                asteroidRunner.calculateCollision();
             }
         }
     }

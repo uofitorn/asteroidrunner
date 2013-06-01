@@ -12,11 +12,18 @@ public class AsteroidRunner {
 
     private final static String TAG = "AsteroidRunner";
 
+    public static final int GAMESTATE_PLAYING = 0;
+    public static final int GAMESTATE_WON_GAME = 1;
+    public static final int GAMESTATE_LOST_GAME = 2;
+
     private int playerX = 0;
     private int playerY = 0;
     private int surroundingMines = 0;
     private int gridSquareLength = 0;
     private int gridSquareHeight = 0;
+    private int canvasWidth = 0;
+    private int canvasHeight = 0;
+    private int gameState;
 
     public static final double DIFFICULTY_EASY = 0.20;
     public static final double DIFFICULTY_MEDIUM = 0.25;
@@ -24,11 +31,14 @@ public class AsteroidRunner {
 
     private static final int boardSize = 12;
     private int[][] gameBoard = new int[boardSize][boardSize];
-    private double difficultyLevel = DIFFICULTY_HARD;
+    private int[][] playerVisited = new int[boardSize][boardSize];
+    private double difficultyLevel = DIFFICULTY_MEDIUM;
 
     private Bitmap backgroundImage;
     private Bitmap playerShipSprite;
     private Bitmap spaceMineSprite;
+    private Bitmap squareBG;
+    private Bitmap explosionSprite;
     private Bitmap[] numerals = new Bitmap[8];
 
     public AsteroidRunner(Context context) {
@@ -36,6 +46,9 @@ public class AsteroidRunner {
         backgroundImage = BitmapFactory.decodeResource(res, R.drawable.starbackground);
         playerShipSprite = BitmapFactory.decodeResource(res, R.drawable.lander_plain);
         spaceMineSprite = BitmapFactory.decodeResource(res, R.drawable.spacemine);
+        squareBG = BitmapFactory.decodeResource(res, R.drawable.bgsquare);
+        explosionSprite = BitmapFactory.decodeResource(res, R.drawable.explosion);
+
         numerals[0] = BitmapFactory.decodeResource(res, R.drawable.zero);
         numerals[1] = BitmapFactory.decodeResource(res, R.drawable.one);
         numerals[2] = BitmapFactory.decodeResource(res, R.drawable.two);
@@ -49,14 +62,22 @@ public class AsteroidRunner {
             shuffleMap();
             Log.i(TAG, "Shuffling game board");
         } while (!isSolvable());
+
+        calcSurroundingMines();
+
+        /*for (int i = 0; i < boardSize; i++) {
+            for (int j = 0; j < boardSize; j++) {
+                playerVisited[i][j] = 0;
+            }
+        } */
+
+        gameState = GAMESTATE_PLAYING;
     }
 
     public void drawGrid(int boardWidth, int boardHeight, Canvas canvas) {
         Paint gridPaint = new Paint();
         gridPaint.setAntiAlias(true);
         gridPaint.setARGB(255, 255, 255, 255);
-        gridSquareLength = boardWidth / 12;
-        gridSquareHeight = gridSquareLength;
         for (int i = 0; i <= boardSize; i++) {
             canvas.drawLine(0, i * gridSquareHeight, boardWidth, i * gridSquareHeight, gridPaint);
         }
@@ -69,20 +90,31 @@ public class AsteroidRunner {
         for (int i = 0; i < boardSize; i++) {
             for (int j = 0; j < boardSize; j++) {
                 if (gameBoard[i][j] == 1) {
-                    spaceMineSprite = Bitmap.createScaledBitmap(spaceMineSprite, gridSquareLength, gridSquareHeight, true);
                     canvas.drawBitmap(spaceMineSprite, i * gridSquareLength, j * gridSquareHeight, null);
                 }
             }
         }
     }
 
-    public void drawBackground(Canvas canvas, int canvasWidth, int canvasHeight) {
-        backgroundImage = Bitmap.createScaledBitmap(backgroundImage, canvasWidth, canvasHeight, true);
+    public void drawSquareCover(Canvas canvas) {
+        for (int i = 0; i < boardSize; i++) {
+            for (int j = 0; j < boardSize; j++) {
+                if (playerVisited[i][j] == 0) {
+                    if (i == 0 && j == 0)
+                        continue;
+                    if (i == boardSize - 1 && j == boardSize - 1)
+                        continue;
+                    canvas.drawBitmap(squareBG, i * gridSquareLength, j * gridSquareHeight, null);
+                }
+            }
+        }
+    }
+
+    public void drawBackground(Canvas canvas) {
         canvas.drawBitmap(backgroundImage, 0, 0, null);
     }
 
     public void drawPlayerShip(Canvas canvas) {
-        playerShipSprite = Bitmap.createScaledBitmap(playerShipSprite, gridSquareLength, gridSquareHeight, true);
         canvas.drawBitmap(playerShipSprite, playerX * gridSquareLength, playerY * gridSquareHeight + 5, null);
     }
 
@@ -92,47 +124,75 @@ public class AsteroidRunner {
 
     public void calcSurroundingMines() {
         int numMines = 0;
-        if (gameBoard[playerX - 1][playerY - 1] == 1)
+        Log.i(TAG, "PlayerX: " + playerX + " and playerY: " + playerY);
+        if (playerX != 0 && playerY != 0 && (gameBoard[playerX - 1][playerY - 1] == 1)) {
             numMines++;
-        if (gameBoard[playerX][playerY - 1] == 1)
+        }
+        if (playerY != 0 && (gameBoard[playerX][playerY - 1] == 1)) {
             numMines++;
-        if (gameBoard[playerX + 1][playerY - 1] == 1)
+        }
+        if (playerY != 0 && (playerX != boardSize - 1) && (gameBoard[playerX + 1][playerY - 1] == 1)) {
             numMines++;
-        if (gameBoard[playerX + 1][playerY] == 1)
+        }
+        if ((playerX != boardSize - 1) && (gameBoard[playerX + 1][playerY] == 1)) {
             numMines++;
-        if (gameBoard[playerX + 1][playerY + 1] == 1)
+        }
+        if ((playerX != boardSize - 1) && (gameBoard[playerX + 1][playerY + 1] == 1)) {
             numMines++;
-        if (gameBoard[playerX][playerY + 1] == 1)
+        }
+        if ((playerY != boardSize - 1) && (gameBoard[playerX][playerY + 1] == 1)) {
             numMines++;
-        if (gameBoard[playerX - 1][playerY + 1] == 1)
+        }
+        if (playerX != 0 && (playerY != boardSize - 1) && (gameBoard[playerX - 1][playerY + 1] == 1)) {
             numMines++;
-        if (gameBoard[playerX - 1][playerY] == 1)
+        }
+        if (playerX != 0 && (gameBoard[playerX - 1][playerY] == 1)) {
             numMines++;
+        }
+        Log.i(TAG, "Surrounding mine count: " + numMines);
         surroundingMines = numMines;
     }
 
     public void handleMoveUp() {
         if (playerY != 0) {
             playerY--;
+            playerVisited[playerX][playerY] = 1;
         }
     }
 
     public void handleMoveDown() {
         if (playerY != boardSize - 1) {
             playerY++;
+            playerVisited[playerX][playerY] = 1;
         }
     }
 
     public void handleMoveRight() {
         if (playerX != boardSize - 1) {
             playerX++;
+            playerVisited[playerX][playerY] = 1;
         }
     }
 
     public void handleMoveLeft() {
         if (playerX != 0) {
             playerX--;
+            playerVisited[playerX][playerY] = 1;
         }
+    }
+
+    public void calculateCollision() {
+        if (gameBoard[playerX][playerY] == 1) {
+            gameState = GAMESTATE_LOST_GAME;
+        }
+    }
+
+    public void drawExplosion(Canvas canvas) {
+        canvas.drawBitmap(explosionSprite, playerX * gridSquareLength, playerY * gridSquareHeight, null);
+    }
+
+    public int getGameState() {
+        return gameState;
     }
 
     private void shuffleMap() {
@@ -154,11 +214,11 @@ public class AsteroidRunner {
 
     private boolean isSolvable() {
         if (findPath(0, 0)) {
-            Log.i(TAG, "Path returned true");
+            Log.i(TAG, "Path returned true, board is solvable.");
             return true;
         }
         else {
-            Log.i(TAG, "Path returned false");
+            Log.i(TAG, "Path returned false, board is not solvable");
             return false;
         }
     }
@@ -185,5 +245,20 @@ public class AsteroidRunner {
         if (findPath(x - 1, y))
             return true;
         return false;
+    }
+
+    void initializeBounds(int canvasWidth, int canvasHeight) {
+        this.canvasWidth = canvasWidth;
+        this.canvasHeight = canvasHeight;
+        gridSquareLength = canvasWidth / boardSize;
+        gridSquareHeight = gridSquareLength;
+    }
+
+    void initializeImages() {
+        squareBG = Bitmap.createScaledBitmap(squareBG, gridSquareLength, gridSquareHeight, true);
+        spaceMineSprite = Bitmap.createScaledBitmap(spaceMineSprite, gridSquareLength, gridSquareHeight, true);
+        backgroundImage = Bitmap.createScaledBitmap(backgroundImage, canvasWidth, canvasHeight, true);
+        playerShipSprite = Bitmap.createScaledBitmap(playerShipSprite, gridSquareLength, gridSquareHeight, true);
+        explosionSprite = Bitmap.createScaledBitmap(explosionSprite, gridSquareLength, gridSquareHeight, true);
     }
 }
