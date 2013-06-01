@@ -6,7 +6,11 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.media.AudioManager;
 import android.util.Log;
+import android.media.SoundPool;
+
+import java.util.HashMap;
 
 public class AsteroidRunner {
 
@@ -15,6 +19,12 @@ public class AsteroidRunner {
     public static final int GAMESTATE_PLAYING = 0;
     public static final int GAMESTATE_WON_GAME = 1;
     public static final int GAMESTATE_LOST_GAME = 2;
+    public static final int GAMESTATE_STARTING = 3;
+
+    private int explosionSound;
+    private int startingSound;
+    private int zoomSound;
+    private static SoundPool soundPool;
 
     private int playerX = 0;
     private int playerY = 0;
@@ -24,30 +34,99 @@ public class AsteroidRunner {
     private int canvasWidth = 0;
     private int canvasHeight = 0;
     private int gameState;
+    private int frameBufferWidth;
+    private int frameBufferHeight;
 
-    public static final double DIFFICULTY_EASY = 0.20;
-    public static final double DIFFICULTY_MEDIUM = 0.25;
-    public static final double DIFFICULTY_HARD = 0.45;
+    public static final double DIFFICULTY_SUPER_EASY_VALUE = 0.02;
+    public static final double DIFFICULTY_EASY_VALUE = 0.15;
+    public static final double DIFFICULTY_MEDIUM_VALUE = 0.20;
+    public static final double DIFFICULTY_HARD_VALUE = 0.25;
+    public static final int DIFFICULTY_SUPER_EASY = 0;
+    public static final int DIFFICULTY_EASY = 1;
+    public static final int DIFFICULTY_MEDIUM = 2;
+    public static final int DIFFICULTY_HARD = 3;
 
     private static final int boardSize = 12;
     private int[][] gameBoard = new int[boardSize][boardSize];
     private int[][] playerVisited = new int[boardSize][boardSize];
-    private double difficultyLevel = DIFFICULTY_MEDIUM;
+    private double difficultyLevelValue = DIFFICULTY_SUPER_EASY_VALUE;
+    private int difficultyLevel = DIFFICULTY_SUPER_EASY;
 
     private Bitmap backgroundImage;
     private Bitmap playerShipSprite;
     private Bitmap spaceMineSprite;
-    private Bitmap squareBG;
+    private Bitmap squareBG, visitedSquare;
     private Bitmap explosionSprite;
+    private Bitmap gameOver;
+    private Bitmap upArrow, downArrow, leftArrow, rightArrow;
+    private Bitmap minesNearby;
+    private Bitmap wormhole;
+    private Bitmap newGame;
+    private Bitmap youEscaped;
+    private Bitmap redStar;
+    private Bitmap startScreen;
+    private Bitmap newGame2, difficulty, difficulty0, difficulty1, difficulty2, difficulty3;
     private Bitmap[] numerals = new Bitmap[8];
 
-    public AsteroidRunner(Context context) {
+    int upArrowX = 230, upArrowY = 630;
+    int downArrowX = 230, downArrowY = 830;
+    int leftArrowX = 140, leftArrowY = 740;
+    int rightArrowX =  315, rightArrowY = 740;
+    int newGameX = 95, newGameY = 690;
+    int newGameX2 = 90, newGameY2 = 600;
+    int difficultyLabelX = 120, difficultyLabelY = 700;
+    int difficultyLevelX = 270, difficultyLevelY = 700;
+    float scaleX, scaleY;
+
+    public AsteroidRunner(Context context, int frameBufferWidth, int frameBufferHeight) {
+        this.frameBufferWidth = frameBufferWidth;
+        this.frameBufferHeight = frameBufferHeight;
+
+        initImages(context);
+        initSounds(context);
+
+        do {
+            shuffleMap();
+            Log.i(TAG, "Shuffling game board");
+        } while (!isSolvable());
+
+        calcSurroundingMines();
+        gameState = GAMESTATE_STARTING;
+        playerVisited[0][0] = 1;
+    }
+
+    public void initSounds(Context context) {
+        soundPool = new SoundPool(2, AudioManager.STREAM_MUSIC, 100);
+        explosionSound = soundPool.load(context, R.raw.explosiongameover, 1);
+        startingSound = soundPool.load(context, R.raw.startingsound, 1);
+        zoomSound = soundPool.load(context, R.raw.zoom, 1);
+    }
+
+    public void initImages(Context context) {
         Resources res = context.getResources();
         backgroundImage = BitmapFactory.decodeResource(res, R.drawable.starbackground);
         playerShipSprite = BitmapFactory.decodeResource(res, R.drawable.lander_plain);
         spaceMineSprite = BitmapFactory.decodeResource(res, R.drawable.spacemine);
         squareBG = BitmapFactory.decodeResource(res, R.drawable.bgsquare);
         explosionSprite = BitmapFactory.decodeResource(res, R.drawable.explosion);
+        gameOver = BitmapFactory.decodeResource(res, R.drawable.gameover);
+        upArrow = BitmapFactory.decodeResource(res, R.drawable.uparrow);
+        downArrow = BitmapFactory.decodeResource(res, R.drawable.downarrow);
+        leftArrow = BitmapFactory.decodeResource(res, R.drawable.leftarrow);
+        rightArrow = BitmapFactory.decodeResource(res, R.drawable.rightarrow);
+        minesNearby = BitmapFactory.decodeResource(res, R.drawable.minesnearby);
+        visitedSquare = BitmapFactory.decodeResource(res, R.drawable.visitedsquare);
+        wormhole = BitmapFactory.decodeResource(res, R.drawable.wormhole);
+        newGame = BitmapFactory.decodeResource(res, R.drawable.newgame);
+        youEscaped = BitmapFactory.decodeResource(res, R.drawable.youescaped);
+        redStar = BitmapFactory.decodeResource(res, R.drawable.redstar);
+        startScreen = BitmapFactory.decodeResource(res, R.drawable.startscreen);
+        newGame2 = BitmapFactory.decodeResource(res, R.drawable.newgame2);
+        difficulty = BitmapFactory.decodeResource(res, R.drawable.difficulty);
+        difficulty0 = BitmapFactory.decodeResource(res, R.drawable.difficulty0);
+        difficulty1 = BitmapFactory.decodeResource(res, R.drawable.difficulty1);
+        difficulty2 = BitmapFactory.decodeResource(res, R.drawable.difficulty2);
+        difficulty3 = BitmapFactory.decodeResource(res, R.drawable.difficulty3);
 
         numerals[0] = BitmapFactory.decodeResource(res, R.drawable.zero);
         numerals[1] = BitmapFactory.decodeResource(res, R.drawable.one);
@@ -57,33 +136,26 @@ public class AsteroidRunner {
         numerals[5] = BitmapFactory.decodeResource(res, R.drawable.five);
         numerals[6] = BitmapFactory.decodeResource(res, R.drawable.six);
         numerals[7] = BitmapFactory.decodeResource(res, R.drawable.seven);
+    }
 
+    public void startNewGame() {
+        playerX = 0;
+        playerY = 0;
         do {
             shuffleMap();
             Log.i(TAG, "Shuffling game board");
         } while (!isSolvable());
 
         calcSurroundingMines();
-
-        /*for (int i = 0; i < boardSize; i++) {
+        gameState = GAMESTATE_PLAYING;
+        for (int i = 0; i < boardSize; i++) {
             for (int j = 0; j < boardSize; j++) {
                 playerVisited[i][j] = 0;
             }
-        } */
-
+        }
+        playerVisited[0][0] = 1;
         gameState = GAMESTATE_PLAYING;
-    }
-
-    public void drawGrid(int boardWidth, int boardHeight, Canvas canvas) {
-        Paint gridPaint = new Paint();
-        gridPaint.setAntiAlias(true);
-        gridPaint.setARGB(255, 255, 255, 255);
-        for (int i = 0; i <= boardSize; i++) {
-            canvas.drawLine(0, i * gridSquareHeight, boardWidth, i * gridSquareHeight, gridPaint);
-        }
-        for (int i = 0; i < boardSize; i++) {
-            canvas.drawLine(i * gridSquareLength, 0, i * gridSquareLength, boardHeight, gridPaint);
-        }
+        soundPool.play(startingSound, 1.0f, 1.0f, 1, 0, 1f);
     }
 
     public void drawMines(Canvas canvas) {
@@ -110,8 +182,66 @@ public class AsteroidRunner {
         }
     }
 
+    public void drawVisited(Canvas canvas) {
+        for (int i = 0; i < boardSize; i++) {
+            for (int j = 0; j < boardSize; j++) {
+                if (playerVisited[i][j] == 1) {
+                    if (i == boardSize - 1 && j == boardSize - 1)
+                        continue;
+                    if (i == playerX && j == playerY)
+                        continue;
+                    canvas.drawBitmap(visitedSquare, i * gridSquareLength, j * gridSquareHeight, null);
+                }
+            }
+        }
+    }
+
     public void drawBackground(Canvas canvas) {
-        canvas.drawBitmap(backgroundImage, 0, 0, null);
+        if (gameState == GAMESTATE_PLAYING) {
+            canvas.drawBitmap(backgroundImage, 0, 0, null);
+            Paint gridPaint = new Paint();
+            gridPaint.setAntiAlias(true);
+            gridPaint.setARGB(255, 255, 255, 255);
+            for (int i = 0; i <= boardSize; i++) {
+                canvas.drawLine(0, i * gridSquareHeight, frameBufferWidth, i * gridSquareHeight, gridPaint);
+            }
+            for (int i = 0; i < boardSize; i++) {
+                canvas.drawLine(i * gridSquareLength, 0, i * gridSquareLength, frameBufferWidth, gridPaint);
+            }
+            canvas.drawBitmap(wormhole, 11 * gridSquareLength, 11 * gridSquareLength, null);
+            canvas.drawBitmap(redStar, 0, 0, null);
+        } else if (gameState == GAMESTATE_STARTING) {
+            canvas.drawBitmap(startScreen, 0, 0, null);
+            canvas.drawBitmap(newGame, newGameX2, newGameY2, null);
+            canvas.drawBitmap(difficulty, difficultyLabelX, difficultyLabelY, null);
+            switch (difficultyLevel) {
+                case DIFFICULTY_SUPER_EASY:
+                    canvas.drawBitmap(difficulty0, difficultyLevelX, difficultyLevelY, null);
+                    break;
+                case DIFFICULTY_EASY:
+                    canvas.drawBitmap(difficulty1, difficultyLevelX, difficultyLevelY, null);
+                    break;
+                case DIFFICULTY_MEDIUM:
+                    canvas.drawBitmap(difficulty2, difficultyLevelX, difficultyLevelY, null);
+                    break;
+                case DIFFICULTY_HARD:
+                    canvas.drawBitmap(difficulty3, difficultyLevelX, difficultyLevelY, null);
+                    break;
+            }
+        } else if (gameState == GAMESTATE_LOST_GAME || gameState == GAMESTATE_WON_GAME) {
+            canvas.drawBitmap(backgroundImage, 0, 0, null);
+            Paint gridPaint = new Paint();
+            gridPaint.setAntiAlias(true);
+            gridPaint.setARGB(255, 255, 255, 255);
+            for (int i = 0; i <= boardSize; i++) {
+                canvas.drawLine(0, i * gridSquareHeight, frameBufferWidth, i * gridSquareHeight, gridPaint);
+            }
+            for (int i = 0; i < boardSize; i++) {
+                canvas.drawLine(i * gridSquareLength, 0, i * gridSquareLength, frameBufferWidth, gridPaint);
+            }
+            canvas.drawBitmap(wormhole, 11 * gridSquareLength, 11 * gridSquareLength, null);
+            canvas.drawBitmap(redStar, 0, 0, null);
+        }
     }
 
     public void drawPlayerShip(Canvas canvas) {
@@ -119,37 +249,28 @@ public class AsteroidRunner {
     }
 
     public void drawMineCount(Canvas canvas) {
-        canvas.drawBitmap(numerals[surroundingMines], 50, 50  + (12 * gridSquareHeight), null);
+        canvas.drawBitmap(minesNearby, 50, canvasWidth + 20, null);
+        canvas.drawBitmap(numerals[surroundingMines], 390, frameBufferWidth - 60, null);
     }
 
     public void calcSurroundingMines() {
         int numMines = 0;
-        Log.i(TAG, "PlayerX: " + playerX + " and playerY: " + playerY);
-        if (playerX != 0 && playerY != 0 && (gameBoard[playerX - 1][playerY - 1] == 1)) {
+        if (playerX != 0 && playerY != 0 && (gameBoard[playerX - 1][playerY - 1] == 1))
             numMines++;
-        }
-        if (playerY != 0 && (gameBoard[playerX][playerY - 1] == 1)) {
+        if (playerY != 0 && (gameBoard[playerX][playerY - 1] == 1))
             numMines++;
-        }
-        if (playerY != 0 && (playerX != boardSize - 1) && (gameBoard[playerX + 1][playerY - 1] == 1)) {
+        if (playerY != 0 && (playerX != boardSize - 1) && (gameBoard[playerX + 1][playerY - 1] == 1))
             numMines++;
-        }
-        if ((playerX != boardSize - 1) && (gameBoard[playerX + 1][playerY] == 1)) {
+        if ((playerX != boardSize - 1) && (gameBoard[playerX + 1][playerY] == 1))
             numMines++;
-        }
-        if ((playerX != boardSize - 1) && (gameBoard[playerX + 1][playerY + 1] == 1)) {
+        if ((playerX != boardSize - 1) && (playerY != boardSize - 1) && (gameBoard[playerX + 1][playerY + 1] == 1))
             numMines++;
-        }
-        if ((playerY != boardSize - 1) && (gameBoard[playerX][playerY + 1] == 1)) {
+        if ((playerY != boardSize - 1) && (gameBoard[playerX][playerY + 1] == 1))
             numMines++;
-        }
-        if (playerX != 0 && (playerY != boardSize - 1) && (gameBoard[playerX - 1][playerY + 1] == 1)) {
+        if (playerX != 0 && (playerY != boardSize - 1) && (gameBoard[playerX - 1][playerY + 1] == 1))
             numMines++;
-        }
-        if (playerX != 0 && (gameBoard[playerX - 1][playerY] == 1)) {
+        if (playerX != 0 && (gameBoard[playerX - 1][playerY] == 1))
             numMines++;
-        }
-        Log.i(TAG, "Surrounding mine count: " + numMines);
         surroundingMines = numMines;
     }
 
@@ -184,11 +305,23 @@ public class AsteroidRunner {
     public void calculateCollision() {
         if (gameBoard[playerX][playerY] == 1) {
             gameState = GAMESTATE_LOST_GAME;
+            soundPool.play(explosionSound, 1.0f, 1.0f, 1, 0, 1.0f);
+        } else if (playerX == 11 && playerY == 11) {
+            gameState = GAMESTATE_WON_GAME;
+        } else {
+            // Only play sound if not a collision or winning state
+            soundPool.play(zoomSound, 1.0f, 1.0f, 1, 0, 1.0f);
         }
+
     }
 
     public void drawExplosion(Canvas canvas) {
         canvas.drawBitmap(explosionSprite, playerX * gridSquareLength, playerY * gridSquareHeight, null);
+    }
+
+    public void drawYouWon(Canvas canvas) {
+        canvas.drawBitmap(youEscaped, 10, frameBufferWidth + 50, null);
+        canvas.drawBitmap(newGame, newGameX, newGameY, null);
     }
 
     public int getGameState() {
@@ -199,7 +332,7 @@ public class AsteroidRunner {
         double difficultyThreshold = 0;
         for (int i = 0; i < boardSize; i++) {
             for (int j = 0; j < boardSize; j++) {
-                difficultyThreshold = difficultyLevel;
+                difficultyThreshold = difficultyLevelValue;
                 double rand = Math.random();
                 if (rand < difficultyThreshold) {
                     gameBoard[i][j] = 1;
@@ -247,18 +380,97 @@ public class AsteroidRunner {
         return false;
     }
 
-    void initializeBounds(int canvasWidth, int canvasHeight) {
+    void initializeBounds(int canvasWidth, int canvasHeight, float scaleX, float scaleY) {
         this.canvasWidth = canvasWidth;
         this.canvasHeight = canvasHeight;
         gridSquareLength = canvasWidth / boardSize;
         gridSquareHeight = gridSquareLength;
+        this.scaleX = scaleX;
+        this.scaleY = scaleY;
     }
 
-    void initializeImages() {
+    void initializeImages(int framebufferWidth, int framebufferHeight) {
         squareBG = Bitmap.createScaledBitmap(squareBG, gridSquareLength, gridSquareHeight, true);
         spaceMineSprite = Bitmap.createScaledBitmap(spaceMineSprite, gridSquareLength, gridSquareHeight, true);
-        backgroundImage = Bitmap.createScaledBitmap(backgroundImage, canvasWidth, canvasHeight, true);
+        startScreen = Bitmap.createScaledBitmap(startScreen, framebufferWidth, framebufferHeight, true);
+        backgroundImage = Bitmap.createScaledBitmap(backgroundImage, framebufferWidth, framebufferHeight, true);
         playerShipSprite = Bitmap.createScaledBitmap(playerShipSprite, gridSquareLength, gridSquareHeight, true);
         explosionSprite = Bitmap.createScaledBitmap(explosionSprite, gridSquareLength, gridSquareHeight, true);
+        visitedSquare = Bitmap.createScaledBitmap(visitedSquare, gridSquareLength, gridSquareHeight, true);
+        wormhole = Bitmap.createScaledBitmap(wormhole, gridSquareLength, gridSquareHeight, true);
+        redStar = Bitmap.createScaledBitmap(redStar, gridSquareLength, gridSquareHeight, true);
+    }
+
+    void drawGameOver(Canvas canvas) {
+        canvas.drawBitmap(gameOver, 85, frameBufferWidth + 50, null);
+        canvas.drawBitmap(newGame, newGameX, newGameY, null);
+    }
+
+    void drawControls(Canvas canvas) {
+        canvas.drawBitmap(upArrow, upArrowX, upArrowY, null);
+        canvas.drawBitmap(downArrow, downArrowX, downArrowY , null);
+        canvas.drawBitmap(leftArrow, leftArrowX, leftArrowY, null);
+        canvas.drawBitmap(rightArrow, rightArrowX, rightArrowY, null);
+    }
+
+    void processTouchEvent(float touchX, float touchY) {
+        if (gameState == GAMESTATE_PLAYING) {
+            if (checkBounds(upArrowX, upArrowY, upArrow.getWidth(), upArrow.getHeight(), touchX, touchY)) {
+                handleMoveUp();
+            } else if (checkBounds(downArrowX, downArrowY, downArrow.getWidth(), downArrow.getHeight(), touchX, touchY)) {
+                handleMoveDown();
+            } else if (checkBounds(leftArrowX, leftArrowY, leftArrow.getWidth(), leftArrow.getHeight(), touchX, touchY)) {
+                handleMoveLeft();
+            } else if (checkBounds(rightArrowX, rightArrowY, rightArrow.getWidth(), rightArrow.getHeight(), touchX, touchY)) {
+                handleMoveRight();
+            }
+            calcSurroundingMines();
+            calculateCollision();
+        } else if(gameState == GAMESTATE_LOST_GAME) {
+            if(checkBounds(newGameX, newGameY, newGame.getWidth(), newGame.getHeight(), touchX, touchY)) {
+                startNewGame();
+            }
+        } else if(gameState == GAMESTATE_WON_GAME) {
+            if(checkBounds(newGameX, newGameY, newGame.getWidth(), newGame.getHeight(), touchX, touchY)) {
+                startNewGame();
+            }
+        } else if (gameState == GAMESTATE_STARTING) {
+            if(checkBounds(newGameX2, newGameY2, newGame.getWidth(), newGame.getHeight(), touchX, touchY)) {
+                startNewGame();
+            } else if (checkBounds(difficultyLabelX, difficultyLabelY, difficulty.getWidth(), difficulty.getHeight(), touchX, touchY) ||
+                        checkBounds(difficultyLevelX, difficultyLevelY, difficulty2.getWidth(), difficulty2.getHeight(), touchX, touchY)) {
+                switch (difficultyLevel) {
+                    case DIFFICULTY_SUPER_EASY:
+                        difficultyLevel = DIFFICULTY_EASY;
+                        difficultyLevelValue = DIFFICULTY_EASY_VALUE;
+                        break;
+                    case DIFFICULTY_EASY:
+                        difficultyLevel = DIFFICULTY_MEDIUM;
+                        difficultyLevelValue = DIFFICULTY_MEDIUM_VALUE;
+                        break;
+                    case DIFFICULTY_MEDIUM:
+                        difficultyLevel = DIFFICULTY_HARD;
+                        difficultyLevelValue = DIFFICULTY_HARD_VALUE;
+                        break;
+                    case DIFFICULTY_HARD:
+                        difficultyLevel = DIFFICULTY_SUPER_EASY;
+                        difficultyLevelValue = DIFFICULTY_SUPER_EASY_VALUE;
+                        break;
+                }
+            }
+
+        }
+    }
+
+    boolean checkBounds(int x, int y, float xSize, float ySize, float touchX, float touchY) {
+        Log.i(TAG, "Checking x: " + x + " and y: " + y + " and xSize: " + xSize + " and ySize: " + ySize + " and touchX: " + touchX + " and touchY: " + touchY);
+        if ((touchX > x) && (touchX < x + xSize) && (touchY > y) && (touchY < y + ySize)) {
+            Log.i(TAG, "Inside bounds");
+            return true;
+        }
+        else {
+            Log.i(TAG, "Not inside bounds");
+            return false;
+        }
     }
 }

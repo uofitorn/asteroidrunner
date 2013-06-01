@@ -6,6 +6,10 @@ import android.view.Menu;
 import android.view.Window;
 import android.view.WindowManager;
 import android.util.Log;
+import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+
 import net.uofitorn.asteroidrunner.LunarView.LunarThread;
 public class MainActivity extends Activity {
 
@@ -18,9 +22,12 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        setContentView(R.layout.lunar_layout);
-        lunarView = (LunarView) findViewById(R.id.lunar);
 
+        LunarView lunarView = new LunarView(this);
+        setContentView(lunarView);
+
+        //setContentView(R.layout.lunar_layout);
+        //lunarView = (LunarView) findViewById(R.id.lunar);
         lunarThread = lunarView.getThread();
         //setContentView(new LunarView(this));
     }
